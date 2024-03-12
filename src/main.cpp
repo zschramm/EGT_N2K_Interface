@@ -2,21 +2,7 @@
 
 using namespace sensesp;
 
-// void SetN2kPGN130316	(	tN2kMsg & 	N2kMsg,
-// unsigned char 	SID,
-// unsigned char 	TempInstance,
-// tN2kTempSource 	N2kts_ExhaustGasTemperature,
-// double 	ActualTemperature,
-// double 	SetTemperature = N2kDoubleNA 
-// )
 
-void SendEngineTemperatures() {
-  tN2kMsg N2kMsg;
-  SetN2kPGN130316(N2kMsg, 
-                           0,  // instance of a single engine is always 0
-
-  nmea2000->SendMsg(N2kMsg);
-}
 
 // SensESP builds upon the ReactESP framework. Every ReactESP application
 // must instantiate the "app" object.
@@ -56,53 +42,27 @@ int gndPin = 2;
 
 using namespace sensesp;
 
-TwoWire* i2c;
-Adafruit_SSD1306* display;
+MAX6675 thermocouple1(thermoCLK, thermoCS1, thermoDO);
+MAX6675 thermocouple2(thermoCLK, thermoCS2, thermoDO);
 
 tNMEA2000* nmea2000;
-
-/// Clear a text row on an Adafruit graphics display
-void ClearRow(int row) { display->fillRect(0, 8 * row, SCREEN_WIDTH, 8, 0); }
 
 float KelvinToCelsius(float temp) { return temp - 273.15; }
 
 float KelvinToFahrenheit(float temp) { return (temp - 273.15) * 9. / 5. + 32.; }
 
-void PrintTemperature(int row, String title, float temperature) {
-  ClearRow(row);
-  display->setCursor(0, 8 * row);
-  display->printf("%s: %.1f", title.c_str(), TEMP_DISPLAY_FUNC(temperature));
-  display->display();
-}
+double thermo1 = N2kDoubleNA;
+double thermo2 = N2kDoubleNA;
 
-double oil_temperature = N2kDoubleNA;
-double coolant_temperature = N2kDoubleNA;
-
-/**
- * @brief Send Engine Dynamic Parameter data
- *
- * Send engine temperature data using the Engine Dynamic Parameter PGN.
- * All unused fields that are sent with undefined value except the status
- * bit fields are sent as zero. Hopefully we're not resetting anybody's engine
- * warnings...
- */
-void SendEngineTemperatures() {
-  tN2kMsg N2kMsg;
-  SetN2kEngineDynamicParam(N2kMsg,
-                           0,  // instance of a single engine is always 0
-                           N2kDoubleNA,  // oil pressure
-                           oil_temperature, coolant_temperature,
-                           N2kDoubleNA,  // alternator voltage
-                           N2kDoubleNA,  // fuel rate
-                           N2kDoubleNA,  // engine hours
-                           N2kDoubleNA,  // engine coolant pressure
-                           N2kDoubleNA,  // engine fuel pressure
-                           N2kInt8NA,    // engine load
-                           N2kInt8NA,    // engine torque
-                           (tN2kEngineDiscreteStatus1)0,
-                           (tN2kEngineDiscreteStatus2)0);
-  nmea2000->SendMsg(N2kMsg);
-}
+//void SetN2kPGN130316() {
+//  tN2kMsg & 	N2kMsg,
+// unsigned char 	SID,
+// unsigned char 	TempInstance,
+// tN2kTempSource 	N2kts_ExhaustGasTemperature,
+// double 	ActualTemperature,
+// double 	SetTemperature = N2kDoubleNA 
+// )
+// }
 
 ReactESP app;
 
@@ -116,8 +76,7 @@ void setup() {
   sensesp_app = builder.set_hostname("temperatures")->get_app();
 
   
-  MAX6675 thermocouple1(thermoCLK, thermoCS1, thermoDO);
-  MAX6675 thermocouple2(thermoCLK, thermoCS2, thermoDO);
+
 
   DallasTemperatureSensors* dts = new DallasTemperatureSensors(ONEWIRE_PIN);
 

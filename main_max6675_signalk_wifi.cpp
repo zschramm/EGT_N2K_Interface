@@ -5,6 +5,12 @@
 #include "sensesp_app.h"
 #include "sensesp_app_builder.h"
 
+// MAX6675 PINS
+#define thermoDO_PIN = 4;
+#define thermoCLK_PIN = 4;
+#define thermoCS1_PIN = 4;
+#define thermoCS2_PIN = 4;
+
 using namespace sensesp;
 
 reactesp::ReactESP app;
@@ -21,12 +27,12 @@ float temp0 = 0;
 float temp1 = 0;
 
 float temp0_callback() {
-  temp0 = thermocouple0.readCelsius() + 273;
+  temp0 = thermocouple0.readCelsius() + 273.15;
   return (temp0);
 }
 
 float temp1_callback() {
-  temp1 = thermocouple1.readCelsius() + 273;
+  temp1 = thermocouple1.readCelsius() + 273.15;
   return (temp1);
 }
 
@@ -42,14 +48,14 @@ void setup() {
                     ->set_hostname("egt-temp")
                     // Optionally, hard-code the WiFi and Signal K server
                     // settings. This is normally not needed.
-                    ->set_wifi("kitty3", "2222222222")
-                    //->set_sk_server("192.168.10.3", 80)
+                    ->set_wifi("Off Hand 2.4G", "2222222222")
+                    ->set_sk_server("192.168.8.10", 3443)
                     ->get_app();
 
   auto* temp0 = new RepeatSensor<float>(1000, temp0_callback); 
   auto* temp1 = new RepeatSensor<float>(1000, temp1_callback);
 
-  temp0->connect_to(new SKOutputFloat("propulsion.0.exhaustemperature"));
+  temp0->connect_to(new SKOutputFloat("propulsion.0.exhaustTemperature"));
   temp1->connect_to(new SKOutputFloat("propulsion.1.exhaustTemperature"));
 
   // Start networking, SK server connections and other SensESP internals

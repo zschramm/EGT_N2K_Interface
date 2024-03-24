@@ -74,7 +74,8 @@ void setup() {
                   ->set_hostname("egt-temp")
                   // Optionally, hard-code the WiFi and Signal K server
                   // settings. This is normally not needed.
-                  ->set_wifi("kitty3", "2222222222")
+                  ->set_wifi("Off Hand 2.4G", "2222222222")
+                  //->set_wifi("kitty3", "2222222222")
                   //->set_sk_server("192.168.8.10", 3443)
                   ->get_app();
 

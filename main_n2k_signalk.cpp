@@ -1,34 +1,25 @@
-#include <Arduino.h>
-#include "sensesp/signalk/signalk_output.h"
-#include "sensesp_app_builder.h"
-
-// CAN bus (NMEA 2000) pins on SH-ESP32
 #include <N2kMessages.h>
 #include <NMEA2000_esp32.h>
-#define CAN_RX_PIN GPIO_NUM_34
-#define CAN_TX_PIN GPIO_NUM_32
-#define RECOVERY_RETRY_MS 1000  // How long to attempt CAN bus recovery
-#define MAX_RX_WAIT_TIME_MS 30000  // Time after which we should reboot if we haven't received any CAN messages
+
+#include "sensesp/signalk/signalk_output.h"
+#include "sensesp_app_builder.h"
+#include "sensesp_onewire/onewire_temperature.h"
+
+#include <max6675.h>
+#include <Arduino.h>
 
 // 1-Wire data pin on SH-ESP32
-// #define ONEWIRE_PIN 4
-// #include "sensesp_onewire/onewire_temperature.h"
+#define ONEWIRE_PIN 4
 
-// MAX6675
-#include <max6675.h>
+// CAN bus (NMEA 2000) pins on SH-ESP32
+#define CAN_RX_PIN GPIO_NUM_34
+#define CAN_TX_PIN GPIO_NUM_32
+
+// MAX6675 PINS
 #define thermoDO GPIO_NUM_18
 #define thermoCLK GPIO_NUM_25
 #define thermo1CS GPIO_NUM_26
 #define thermo2CS GPIO_NUM_27
-
-// Display
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include <Wire.h>  // i2c
-#define SDA_PIN 16
-#define SCL_PIN 17
-#define SCREEN_WIDTH 128  // OLED display width, in pixels
-#define SCREEN_HEIGHT 64  // OLED display height, in pixels
 
 using namespace sensesp;
 
@@ -55,7 +46,6 @@ tNMEA2000* nmea2000;
 
 ReactESP app;
 
-// MAX6675 setup
 MAX6675 thermocouple0(thermoCLK, thermo1CS, thermoDO);
 MAX6675 thermocouple1(thermoCLK, thermo2CS, thermoDO);
 
@@ -72,54 +62,6 @@ float temp1_callback() {
   return (temp1);
 }
 
-// Display setup
-Adafruit_SSD1306 *display;
-TwoWire *i2c;
-
-// CANbus setup
-
-String can_state;
-
-void RecoverFromCANBusOff() {
-  // This recovery routine first discussed in
-  // https://www.esp32.com/viewtopic.php?t=5010 and also implemented in
-  // https://github.com/wellenvogel/esp32-nmea2000
-  static bool recovery_in_progress = false;
-  static elapsedMillis recovery_timer;
-  if (recovery_in_progress && recovery_timer < RECOVERY_RETRY_MS) {
-    return;
-  }
-  recovery_in_progress = true;
-  recovery_timer = 0;
-  // Abort transmission
-  MODULE_CAN->CMR.B.AT = 1;
-  // read SR after write to CMR to settle register changes
-  (void)MODULE_CAN->SR.U;
-
-  // Reset error counters
-  MODULE_CAN->TXERR.U = 127;
-  MODULE_CAN->RXERR.U = 0;
-  // Release Reset mode
-  MODULE_CAN->MOD.B.RM = 0;
-}
-
-// CAN controller registers are SJA1000 compatible.
-// Bus status value 0 indicates bus-on; value 1 indicates bus-off.
-void PollCANStatus() {
-  unsigned int bus_status = MODULE_CAN->SR.B.BS;
-
-  switch (bus_status) {
-    case 0:
-      can_state = "RUNNING";
-      break;
-    case 1:
-      can_state = "BUS-OFF";
-      // try to automatically recover
-      RecoverFromCANBusOff();
-      break;
-  }
-}
-
 void setup() {
 #ifndef SERIAL_DEBUG_DISABLED
   SetupSerialDebug(115200);
@@ -132,8 +74,8 @@ void setup() {
                   ->set_hostname("egt-temp")
                   // Optionally, hard-code the WiFi and Signal K server
                   // settings. This is normally not needed.
-                  //->set_wifi("Off Hand 2.4G", "2222222222")
-                  ->set_wifi("kitty3", "2222222222")
+                  ->set_wifi("Off Hand 2.4G", "2222222222")
+                  //->set_wifi("kitty3", "2222222222")
                   //->set_sk_server("192.168.8.10", 3443)
                   ->get_app();
 
@@ -149,6 +91,8 @@ void setup() {
 
   auto* engine_0_egt_temperature = new RepeatSensor<float>(1000, temp0_callback); 
   auto* engine_1_egt_temperature = new RepeatSensor<float>(1000, temp1_callback);
+
+
 
   // define metadata for sensors
   auto engine_egt_temperature_metadata =
@@ -206,10 +150,7 @@ void setup() {
   nmea2000->Open();
 
   // No need to parse the messages at every single loop iteration; 1 ms will do
-  app.onRepeat(1, []() {
-    PollCANStatus();
-    nmea2000->ParseMessages();
-  });
+  app.onRepeat(1, []() { nmea2000->ParseMessages(); });
 
   // Implement the N2K PGN sending.
 
@@ -238,32 +179,6 @@ void setup() {
         );
         nmea2000->SendMsg(N2kMsg);
       }));
-
-
-  // initialize the display
-  i2c = new TwoWire(0);
-  i2c->begin(SDA_PIN, SCL_PIN);
-  display = new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, i2c, -1);
-  if (!display->begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println(F("SSD1306 allocation failed"));
-  }
-  delay(100);
-  display->setRotation(2);
-  display->clearDisplay();
-  display->display();
-
-  // update results on display
-  app.onRepeat(1000, [&]() {
-    display->clearDisplay();
-    display->setTextSize(1);
-    display->setCursor(0, 0);
-    display->setTextColor(SSD1306_WHITE);
-    display->printf("SH-ESP32 EGT\n");
-    display->printf("CAN: %s\n", can_state.c_str());
-    display->printf("Temperature 0: %.0f F\n", thermocouple0.readFahrenheit());
-    display->printf("Temperature 1: %.0f F\n", thermocouple1.readFahrenheit());
-    display->display();
-  });
 
   sensesp_app->start();
 }

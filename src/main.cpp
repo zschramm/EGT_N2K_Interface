@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "sensesp/signalk/signalk_output.h"
+#include "sensesp/sensors/system_info.h"
 #include "sensesp_app_builder.h"
 
 // CAN bus (NMEA 2000) pins on SH-ESP32
@@ -77,7 +78,6 @@ Adafruit_SSD1306 *display;
 TwoWire *i2c;
 
 // CANbus setup
-
 String can_state;
 
 void RecoverFromCANBusOff() {
@@ -132,8 +132,8 @@ void setup() {
                   ->set_hostname("egt-temp")
                   // Optionally, hard-code the WiFi and Signal K server
                   // settings. This is normally not needed.
-                  //->set_wifi("Off Hand 2.4G", "2222222222")
-                  ->set_wifi("kitty3", "2222222222")
+                  ->set_wifi("Off Hand 2.4G", "2222222222")
+                  //->set_wifi("kitty3", "2222222222")
                   //->set_sk_server("192.168.8.10", 3443)
                   ->get_app();
 
@@ -255,11 +255,14 @@ void setup() {
   // update results on display
   app.onRepeat(1000, [&]() {
     display->clearDisplay();
-    display->setTextSize(1);
+    display->setTextSize(2);
     display->setCursor(0, 0);
     display->setTextColor(SSD1306_WHITE);
-    display->printf("SH-ESP32 EGT\n");
+    display->printf("SME EGT\n");
+    display->setTextSize(1);
     display->printf("CAN: %s\n", can_state.c_str());
+    display->printf("SSID: %s\n", WiFi.SSID().c_str());
+    display->printf("IP: %s\n", WiFi.localIP().toString().c_str());
     display->printf("Temperature 0: %.0f F\n", thermocouple0.readFahrenheit());
     display->printf("Temperature 1: %.0f F\n", thermocouple1.readFahrenheit());
     display->display();

@@ -22,12 +22,37 @@
 #define thermo1CS GPIO_NUM_26
 #define thermo2CS GPIO_NUM_27
 
-// Serial console debugging disable
-// #define SERIAL_DEBUG_DISABLED
+// Display
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Wire.h>  // i2c
+#define SDA_PIN 16
+#define SCL_PIN 17
+#define SCREEN_WIDTH 128  // OLED display width, in pixels
+#define SCREEN_HEIGHT 64  // OLED display height, in pixels
 
 using namespace sensesp;
 
 tNMEA2000* nmea2000;
+
+// NEED TO UPDATE FOR EXHAUST TEMP PGN
+// void SendEngineTemperatures() {
+//   tN2kMsg N2kMsg;
+//   SetN2kEngineDynamicParam(N2kMsg,
+//                            0,  // instance of a single engine is always 0
+//                            N2kDoubleNA,  // oil pressure
+//                            oil_temperature, coolant_temperature,
+//                            N2kDoubleNA,  // alternator voltage
+//                            N2kDoubleNA,  // fuel rate
+//                            N2kDoubleNA,  // engine hours
+//                            N2kDoubleNA,  // engine coolant pressure
+//                            N2kDoubleNA,  // engine fuel pressure
+//                            N2kInt8NA,    // engine load
+//                            N2kInt8NA,    // engine torque
+//                            (tN2kEngineDiscreteStatus1)0,
+//                            (tN2kEngineDiscreteStatus2)0);
+//   nmea2000->SendMsg(N2kMsg);
+// }
 
 ReactESP app;
 
@@ -46,6 +71,53 @@ float temp0_callback() {
 float temp1_callback() {
   temp1 = thermocouple1.readCelsius() + 273.15;
   return (temp1);
+}
+
+// Display setup
+Adafruit_SSD1306 *display;
+TwoWire *i2c;
+
+// CANbus setup
+String can_state;
+
+void RecoverFromCANBusOff() {
+  // This recovery routine first discussed in
+  // https://www.esp32.com/viewtopic.php?t=5010 and also implemented in
+  // https://github.com/wellenvogel/esp32-nmea2000
+  static bool recovery_in_progress = false;
+  static elapsedMillis recovery_timer;
+  if (recovery_in_progress && recovery_timer < RECOVERY_RETRY_MS) {
+    return;
+  }
+  recovery_in_progress = true;
+  recovery_timer = 0;
+  // Abort transmission
+  MODULE_CAN->CMR.B.AT = 1;
+  // read SR after write to CMR to settle register changes
+  (void)MODULE_CAN->SR.U;
+
+  // Reset error counters
+  MODULE_CAN->TXERR.U = 127;
+  MODULE_CAN->RXERR.U = 0;
+  // Release Reset mode
+  MODULE_CAN->MOD.B.RM = 0;
+}
+
+// CAN controller registers are SJA1000 compatible.
+// Bus status value 0 indicates bus-on; value 1 indicates bus-off.
+void PollCANStatus() {
+  unsigned int bus_status = MODULE_CAN->SR.B.BS;
+
+  switch (bus_status) {
+    case 0:
+      can_state = "RUNNING";
+      break;
+    case 1:
+      can_state = "BUS-OFF";
+      // try to automatically recover
+      RecoverFromCANBusOff();
+      break;
+  }
 }
 
 void setup() {
@@ -166,6 +238,35 @@ void setup() {
         );
         nmea2000->SendMsg(N2kMsg);
       }));
+
+
+  // initialize the display
+  i2c = new TwoWire(0);
+  i2c->begin(SDA_PIN, SCL_PIN);
+  display = new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, i2c, -1);
+  if (!display->begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+  }
+  delay(100);
+  display->setRotation(2);
+  display->clearDisplay();
+  display->display();
+
+  // update results on display
+  app.onRepeat(1000, [&]() {
+    display->clearDisplay();
+    display->setTextSize(2);
+    display->setCursor(0, 0);
+    display->setTextColor(SSD1306_WHITE);
+    display->printf("SME EGT\n");
+    display->setTextSize(1);
+    display->printf("CAN: %s\n", can_state.c_str());
+    display->printf("SSID: %s\n", WiFi.SSID().c_str());
+    display->printf("IP: %s\n", WiFi.localIP().toString().c_str());
+    display->printf("Temperature 0: %.0f F\n", thermocouple0.readFahrenheit());
+    display->printf("Temperature 1: %.0f F\n", thermocouple1.readFahrenheit());
+    display->display();
+  });
 
   sensesp_app->start();
 }

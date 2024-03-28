@@ -134,23 +134,44 @@ void setup() {
   nmea2000->Open();
 
   // No need to parse the messages at every single loop iteration; 1 ms will do
-  app.onRepeat(1, []() {
-    PollCANStatus();
-    nmea2000->ParseMessages();
-  });
+  app.onRepeat(1, []() { nmea2000->ParseMessages(); });
 
   // Implement the N2K PGN sending.
 
   // hijack the exhaust gas temperature for wet exhaust temperature
   // measurement
+  // engine_0_egt_temperature->connect_to(
+  //     new LambdaConsumer<float>([](float temperature) {
+  //       tN2kMsg N2kMsg;
+  //       SetN2kTemperature(N2kMsg,
+  //                         1,                            // SID
+  //                         0,                            // TempInstance
+  //                         N2kts_ExhaustGasTemperature,  // TempSource
+  //                         temperature                   // actual temperature
+  //       );
+  //       nmea2000->SendMsg(N2kMsg);
+  //     }));
+
+  // engine_1_egt_temperature->connect_to(
+  //     new LambdaConsumer<float>([](float temperature) {
+  //       tN2kMsg N2kMsg;
+  //       SetN2kTemperature(N2kMsg,
+  //                         1,                            // SID
+  //                         1,                            // TempInstance
+  //                         N2kts_ExhaustGasTemperature,  // TempSource
+  //                         temperature                   // actual temperature
+  //       );
+  //       nmea2000->SendMsg(N2kMsg);
+  //     }));
+
   engine_0_egt_temperature->connect_to(
       new LambdaConsumer<float>([](float temperature) {
         tN2kMsg N2kMsg;
-        SetN2kTemperature(N2kMsg,
-                          1,                            // SID
-                          0,                            // TempInstance
-                          N2kts_ExhaustGasTemperature,  // TempSource
-                          temperature                   // actual temperature
+        SetN2kPGN130316(N2kMsg,
+                        1,                            // SID
+                        0,                            // TempInstance
+                        N2kts_ExhaustGasTemperature,  // TempSource
+                        temperature                   // actual temperature
         );
         nmea2000->SendMsg(N2kMsg);
       }));
@@ -158,14 +179,15 @@ void setup() {
   engine_1_egt_temperature->connect_to(
       new LambdaConsumer<float>([](float temperature) {
         tN2kMsg N2kMsg;
-        SetN2kTemperature(N2kMsg,
-                          1,                            // SID
-                          1,                            // TempInstance
-                          N2kts_ExhaustGasTemperature,  // TempSource
-                          temperature                   // actual temperature
+        SetN2kPGN130316(N2kMsg,
+                        1,                            // SID
+                        1,                            // TempInstance
+                        N2kts_ExhaustGasTemperature,  // TempSource
+                        temperature                   // actual temperature
         );
         nmea2000->SendMsg(N2kMsg);
       }));
+
 
   sensesp_app->start();
 }

@@ -11,10 +11,6 @@
 #define RECOVERY_RETRY_MS 1000  // How long to attempt CAN bus recovery
 #define MAX_RX_WAIT_TIME_MS 30000  // Time after which we should reboot if we haven't received any CAN messages
 
-// 1-Wire data pin on SH-ESP32
-// #define ONEWIRE_PIN 4
-// #include "sensesp_onewire/onewire_temperature.h"
-
 // MAX6675
 #include <max6675.h>
 #define thermoDO GPIO_NUM_18
@@ -65,16 +61,6 @@ void setup() {
                   //->set_sk_server("192.168.8.10", 3443)
                   ->get_app();
 
-  // DallasTemperatureSensors* dts = new DallasTemperatureSensors(ONEWIRE_PIN);
-
-  // define three 1-Wire temperature sensors that update every 1000 ms
-  // and have specific web UI configuration paths
-  // auto engine_0_egt_temperature =
-  //     new OneWireTemperature(dts, 1000, "/Engine0ExhaustTemp/oneWire");
-
-  // auto engine_1_egt_temperature =
-  //     new OneWireTemperature(dts, 1000, "/Engine1ExhaustTemp/oneWire");
-
   auto* engine_0_egt_temperature = new RepeatSensor<float>(1000, temp0_callback); 
   auto* engine_1_egt_temperature = new RepeatSensor<float>(1000, temp1_callback);
 
@@ -95,9 +81,6 @@ void setup() {
   engine_1_egt_temperature->connect_to(
       new SKOutput<float>("propulsion.1.exhaustTemperature",
                           engine_egt_temperature_metadata));
-
-  // temp0->connect_to(new SKOutputFloat("propulsion.0.exhaustTemperature"));
-  // temp1->connect_to(new SKOutputFloat("propulsion.1.exhaustTemperature"));
 
   // initialize the NMEA 2000 subsystem
   // instantiate the NMEA2000 object
@@ -137,33 +120,6 @@ void setup() {
   app.onRepeat(1, []() { nmea2000->ParseMessages(); });
 
   // Implement the N2K PGN sending.
-
-  // hijack the exhaust gas temperature for wet exhaust temperature
-  // measurement
-  // engine_0_egt_temperature->connect_to(
-  //     new LambdaConsumer<float>([](float temperature) {
-  //       tN2kMsg N2kMsg;
-  //       SetN2kTemperature(N2kMsg,
-  //                         1,                            // SID
-  //                         0,                            // TempInstance
-  //                         N2kts_ExhaustGasTemperature,  // TempSource
-  //                         temperature                   // actual temperature
-  //       );
-  //       nmea2000->SendMsg(N2kMsg);
-  //     }));
-
-  // engine_1_egt_temperature->connect_to(
-  //     new LambdaConsumer<float>([](float temperature) {
-  //       tN2kMsg N2kMsg;
-  //       SetN2kTemperature(N2kMsg,
-  //                         1,                            // SID
-  //                         1,                            // TempInstance
-  //                         N2kts_ExhaustGasTemperature,  // TempSource
-  //                         temperature                   // actual temperature
-  //       );
-  //       nmea2000->SendMsg(N2kMsg);
-  //     }));
-
   engine_0_egt_temperature->connect_to(
       new LambdaConsumer<float>([](float temperature) {
         tN2kMsg N2kMsg;
